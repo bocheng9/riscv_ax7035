@@ -68,36 +68,6 @@ set_property -dict [list \
 ] [get_ips clk_wiz_0]
 generate_target all [get_ips clk_wiz_0]
 
-create_ip -name vio -vendor xilinx.com -library ip -module_name vio_state
-set_property -dict [list \
-    CONFIG.C_NUM_PROBE_IN {6} \
-    CONFIG.C_NUM_PROBE_OUT {2} \
-    CONFIG.C_PROBE_IN0_WIDTH {32} \
-    CONFIG.C_PROBE_IN1_WIDTH {32} \
-    CONFIG.C_PROBE_IN2_WIDTH {32} \
-    CONFIG.C_PROBE_IN3_WIDTH {32} \
-    CONFIG.C_PROBE_IN4_WIDTH {32} \
-    CONFIG.C_PROBE_IN5_WIDTH {32} \
-    CONFIG.C_PROBE_OUT0_WIDTH {1} \
-    CONFIG.C_PROBE_OUT1_WIDTH {1} \
-] [get_ips vio_state]
-generate_target all [get_ips vio_state]
-
-# Probes on the receive path: raw pin, synchronised pin, state, bit counter.
-create_ip -name ila -vendor xilinx.com -library ip -module_name ila_uart
-set_property -dict [list \
-    CONFIG.C_NUM_OF_PROBES {7} \
-    CONFIG.C_PROBE0_WIDTH {32} \
-    CONFIG.C_PROBE1_WIDTH {32} \
-    CONFIG.C_PROBE2_WIDTH {32} \
-    CONFIG.C_PROBE3_WIDTH {32} \
-    CONFIG.C_PROBE4_WIDTH {32} \
-    CONFIG.C_PROBE5_WIDTH {32} \
-    CONFIG.C_PROBE6_WIDTH {32} \
-    CONFIG.C_DATA_DEPTH {4096} \
-] [get_ips ila_uart]
-generate_target all [get_ips ila_uart]
-
 #-----------------------------------------------------------------------------
 # Controller: bring in the XCI and regenerate output in this project
 #

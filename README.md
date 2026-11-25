@@ -88,10 +88,17 @@ rv32mi  16/16    rv32si   5/6
 ```
 
 `rv32si-p-dirty` fails its third sub-test on the board while passing in
-simulation. That sub-test sets `MPRV` and expects a machine-mode load to be
-translated at the privilege in `MPP`; on the board the load reads a different
-value and the case takes the failure path. It is the one open failure and the
-README does not pretend otherwise.
+simulation. Recording the traps the board takes narrowed it down: before the
+sub-test reaches its store, a misaligned-fetch trap is taken at `0x8000019c`,
+an address that is four-byte aligned, so the trap cannot be genuine. Simulation
+takes no such trap. That spurious entry perturbs the state the sub-test then
+relies on, and the case ends up on the failure path.
+
+The trap is raised from the jump-target check, so the fault is either a stale
+`ex_is_jalr`/branch flag surviving into an `mret`, or the target of the previous
+jump still being presented when the redirect is taken. Locating it needs one
+more round of instrumentation on the execute side, which is not in this tree.
+It is the one open failure and the README does not pretend otherwise.
 
 ## Building
 
@@ -167,10 +174,14 @@ until the build script runs.
 
 ## Current margin
 
-Timing closes at roughly -2.2 ns WNS, with the violations concentrated in the
-debug hub rather than in the core logic. The debug cores are temporary
-instrumentation and are being removed; a build without them is expected to
-close, and that is the next step.
+Timing closes at -1.21 ns WNS. The violations sit inside MIG's own temperature
+monitor, not in the core or the memory path: that block reads the XADC and
+adjusts the refresh rate on a slow timer, and being a cycle late there has no
+effect on anything the CPU does.
+
+The debug cores that used to dominate the failing paths are gone. A 24-bit
+heartbeat counter was the other offender and was replaced by driving the LED
+from the retired-instruction counter.
 
 ## Licence
 

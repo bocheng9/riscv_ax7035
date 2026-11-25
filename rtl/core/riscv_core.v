@@ -1278,8 +1278,11 @@ module riscv_core #(
     // So bypass has to look at the adjusted privilege, which is why the
     // in-flight flag below is derived from the raw instruction fields and not
     // from this decision.
-    assign ex_mmu_bypass = !satp_o[31] || (dmem_priv_early == `PRV_M);
+    // The declaration has to come before the assignment that reads it:
+    // Verilog-2001 turns an undeclared identifier into an implicit 1-bit net,
+    // so the compare below would silently use the wrong width.
     wire [1:0] dmem_priv_early = mprv_eff ? mstatus_int[12:11] : priv;
+    assign ex_mmu_bypass = !satp_o[31] || (dmem_priv_early == `PRV_M);
 
     //------------------------------------------------------------------
     // Translation handshake.

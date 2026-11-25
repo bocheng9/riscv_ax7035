@@ -705,20 +705,11 @@ module isa_ddr_top #(
     //-------------------------------------------------------------------------
     // Status
     //-------------------------------------------------------------------------
-    reg [23:0] hb_cnt;
-    reg        hb;
-
-    always @(posedge sys_clk) begin
-        if (!rst_n) begin
-            hb_cnt <= 24'd0;
-            hb     <= 1'b0;
-        end else begin
-            hb_cnt <= hb_cnt + 24'd1;
-            if (hb_cnt == 24'hFFFFFF) hb <= ~hb;
-        end
-    end
-
-    assign led = {instret_cnt[5], calib_done, locked, hb};
+    // The fourth LED follows the retired-instruction counter rather than a
+    // dedicated heartbeat. A free-running counter puts a long carry chain in
+    // one clock path while carrying nothing the design depends on; retiring
+    // instructions is already a sign of life and costs nothing extra.
+    assign led = {instret_cnt[5], calib_done, locked, instret_cnt[24]};
 
     // Free-running counter on the reference clock: shows the clock tree is up
     // even when the controller is still training.
@@ -1003,20 +994,6 @@ module isa_ddr_top #(
         .sfence_va     (32'h0)
     );
 
-    vio_state u_vio (
-        .clk        (ui_clk),
-        .probe_in0  (rx_total),
-        .probe_in1  (gp_dbg),
-        .probe_in2  (mcause_dbg),
-        // 8 + 8 + 2 + 1 + 1 + 1 + 11 = 32 bits
-        // The address the CPU is currently accessing: 0x0000_xxxx means the
-        // BootROM, 0x8000_xxxx means the program in DDR.
-        .probe_in3  (id_pc_dbg),
-        .probe_in4  (s0_dbg),
-        .probe_in5  ({14'd0, trace_count, trace_state}),
-        .probe_out0 (),
-        .probe_out1 ()
-    );
 
     //-------------------------------------------------------------------------
     // Probes on the receive path. The question this answers is whether the
@@ -1034,18 +1011,5 @@ module isa_ddr_top #(
     // itself, not the CPU address: the CPU address register is shared with
     // instruction fetches and is overwritten while a store is still in flight,
     // so it cannot be trusted as a trigger.
-    ila_uart u_ila (
-        .clk     (ui_clk),
-        // Instruction trace for comparison against the reference model:
-        // the program counter at decode, the instruction word, and the
-        // registers that decide the branch, so a divergence is visible.
-        .probe0  (id_pc_dbg),
-        .probe1  (id_inst_dbg),
-        .probe2  (ex_pc_dbg),
-        .probe3  (ex_alu_y_dbg),
-        .probe4  (mem_pc_dbg),
-        .probe5  (gp_dbg),
-        .probe6  (dbg_instret_lo)
-    );
 
 endmodule
