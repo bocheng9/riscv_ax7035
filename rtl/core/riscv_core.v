@@ -621,7 +621,14 @@ module riscv_core #(
     // 4 → INST_MISALIGNED
     // when only then taken
     wire [31:0] jm_target  = ex_is_jalr ? jalr_raw : branch_target;
-    wire        jm_taking  = ex_is_jalr || ex_is_jal || (ex_is_branch && branch_taken);
+    // Returns are named out explicitly rather than simply left out of the
+    // terms below. Leaving them out only holds while every other flag is
+    // clean, and branch_taken has been seen asserted on a return because
+    // ex_br_type was stale; an exclusion that depends on nothing else being
+    // stale is not an exclusion.
+    wire        jm_taking  = !ex_is_mret && !ex_is_sret &&
+                             (ex_is_jalr || ex_is_jal ||
+                              (ex_is_branch && branch_taken));
     wire        jm_fault   = ex_valid && jm_taking && jm_target[1];
 
     wire do_branch = ex_valid && !jm_fault &&
@@ -1143,6 +1150,16 @@ module riscv_core #(
             ex_mem_we     <= 1'b0;
             ex_csr_uimm   <= 1'b0;
             ex_uimm_v     <= 5'd0;
+            // These were left out of reset. Undriven, ex_imm came up as all
+            // ones and ex_br_type as whatever the power-on value happened to
+            // be, so the jump-target check evaluated pc + imm on an immediate
+            // that never belonged to any instruction: pc was 0, the target was
+            // 0xFFFFFFFF, and the bit-1 test fired on an aligned address.
+            ex_imm        <= 32'h0;
+            ex_br_type    <= 3'd0;
+            ex_rs1_val    <= 32'h0;
+            ex_rs2_val    <= 32'h0;
+            ex_alu_y      <= 32'h0;
         end else if (pc_set) begin
             // flush this cycle EX
             // ex_pc and ex_inst must when ILA
@@ -1165,7 +1182,13 @@ module riscv_core #(
             ex_is_wfi     <= 1'b0;
             ex_if_fault   <= 1'b0;
             ex_if_fault_cause <= 4'd0;
-            ex_inst       <= 32'h13;     // NOP and ex_pc hold
+            ex_inst       <= 32'h13;
+            // The immediate and branch type go with the pc. The jump-target
+            // check computes pc + imm for anything that is not a jalr and
+            // reads the branch type to decide whether a branch is taken, so a
+            // leftover immediate turns a cleared pc into a bogus target.
+            ex_imm        <= 32'h0;
+            ex_br_type    <= 3'd0;     // NOP and ex_pc hold
         end else if (ld_done) begin
             // A retiring access vacates the stage unconditionally: ex_ready is
             // low while the access is in flight, so the branch below never
@@ -1321,10 +1344,16 @@ module riscv_core #(
             mmu_fault_r <= 1'b0;
             mmu_fcause_r<= 4'd0;
         end else if (pc_set || !mmu_need) begin
-            // The instruction is gone (redirect) or needs no translation.
+            // The instruction has left execute, or needs no translation. Busy
+            // and done drop here, but a fault that has already been latched has
+            // to survive until the memory stage reports it: the exception is
+            // raised a cycle later and attributed with the latched pc and
+            // cause, and clearing it here made the exception name whatever
+            // instruction happened to be in execute by then.
             mmu_busy    <= 1'b0;
             mmu_done    <= 1'b0;
-            mmu_fault_r <= 1'b0;
+            if (mmu_fault_ack_o)
+                mmu_fault_r <= 1'b0;
         end else if (!mmu_busy) begin
             // No walk outstanding yet: start one only if this address is not
             // already translated.
@@ -1628,6 +1657,7 @@ module riscv_core #(
                              ex_is_ebreak                ? `EXC_BREAKPOINT :
                              ex_is_ecall                 ? (priv == `PRV_U ? `EXC_ECALL_U :
                                                             priv == `PRV_S ? `EXC_ECALL_S : `EXC_ECALL_M) :
+                             mmu_fault_r                 ? mmu_fcause_r :
                                                            mmu_fault_cause;
             // RISC-V
             // illegal instruction → mtval =
@@ -1636,7 +1666,7 @@ module riscv_core #(
             // page fault → mtval = virtual address
             mem_exc_tval  <= jm_fault     ? jm_target :
                              mmu_fault_r  ? mmu_va_r :
-                             mmu_fault    ? ex_alu_y :
+                             mmu_fault    ? mmu_va_r :
                              ex_illegal   ? ex_inst :
                              ex_is_ebreak ? ex_pc :
                                             32'h0;
@@ -1645,8 +1675,11 @@ module riscv_core #(
             // PTW walk fault mmu_pc_r
             // ex_pc MEM ecall/ebreak/illegal in MEM
             // when mem_pc PC must ex_pc
-            mem_exc_pc    <= mmu_fault_r ? mmu_pc_r :
-                             mmu_fault   ? ex_pc : ex_pc;
+            // A page fault belongs to the access that was translated, and
+            // mmu_pc_r is latched when that access started. ex_pc is only
+            // right when the report lands on the cycle the access is still in
+            // execute; otherwise it has moved on.
+            mem_exc_pc    <= (mmu_fault_r || mmu_fault) ? mmu_pc_r : ex_pc;
         end
     end
 

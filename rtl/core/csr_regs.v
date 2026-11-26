@@ -352,7 +352,14 @@ module csr_regs (
     //==========================================================================
     // write MEM in write CSR when returns write
     // csrw csrr read
-    wire ex_fwd_hit = we && (addr == raddr);
+    // Forwarding exists so a read that follows a write of the same CSR sees
+    // the new value instead of the old one. It must not run when the write is
+    // suppressed, which is what happens on a trap: csr_write drops but we does
+    // not, and forwarding wdata then overwrote the cause and tval the trap had
+    // just produced, so the handler read a stale or zero value and took the
+    // wrong path.
+    wire csr_write  = we && !do_trap;
+    wire ex_fwd_hit = csr_write && (addr == raddr);
 
     always @(*) begin
         case (raddr)
@@ -400,7 +407,6 @@ module csr_regs (
     //==========================================================================
     // CSR write
     //==========================================================================
-    wire csr_write = we && !do_trap;
 
     //==========================================================================
     // op write
