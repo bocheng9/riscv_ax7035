@@ -372,19 +372,24 @@ module csr_regs (
             `CSR_MTVEC:      rdata_ex = mtvec;
             `CSR_MCOUNTEREN: rdata_ex = mcounteren;
             `CSR_MSCRATCH:   rdata_ex = mscratch;
-            `CSR_MEPC:       rdata_ex = do_trap ? epc_r : mepc;     // `CSR_MCAUSE:     rdata_ex = do_trap ? cause4 : mcause; // `CSR_MTVAL:      rdata_ex = do_trap ? tval_r : mtval;   // trap write read
+            `CSR_MEPC:       rdata_ex = do_trap ? epc_r : mepc;     // bypass on trap
+            `CSR_MCAUSE:     rdata_ex = do_trap ? cause4 : mcause; // bypass on trap
+            `CSR_MTVAL:      rdata_ex = do_trap ? tval_r : mtval;   // bypass on trap
             `CSR_MIP:        rdata_ex = mip;
             `CSR_MVENDORID:  rdata_ex = MVENDORID;
             `CSR_MARCHID:    rdata_ex = MARCHID;
             `CSR_MIMPID:     rdata_ex = MIMPID;
             `CSR_MHARTID:    rdata_ex = MHARTID;
             // Supervisor
-            `CSR_SSTATUS:    rdata_ex = mstatus & 32'h800D_6133;  // S Python V2
+            `CSR_SSTATUS:    rdata_ex = mstatus & 32'h800D_6133;  // S-visible bits only
             `CSR_SIE:        rdata_ex = mie & mideleg;
             `CSR_STVEC:      rdata_ex = stvec;
             `CSR_SCOUNTEREN: rdata_ex = scounteren;
             `CSR_SSCRATCH:   rdata_ex = sscratch;
-            `CSR_SEPC:       rdata_ex = do_trap ? epc_r : sepc;     // `CSR_SCAUSE:     rdata_ex = do_trap ? cause4 : scause; // `CSR_STVAL:      rdata_ex = do_trap ? tval_r : stval;   // `CSR_SIP:        rdata_ex = mip & mideleg;
+            `CSR_SEPC:       rdata_ex = do_trap ? epc_r : sepc;     // bypass on trap
+            `CSR_SCAUSE:     rdata_ex = do_trap ? cause4 : scause; // bypass on trap
+            `CSR_STVAL:      rdata_ex = do_trap ? tval_r : stval;   // bypass on trap
+            `CSR_SIP:        rdata_ex = mip & mideleg;
             `CSR_SATP:       rdata_ex = satp;
             `CSR_PMPCFG0:    rdata_ex = pmpcfg[0];
             `CSR_PMPCFG1:    rdata_ex = pmpcfg[1];
